@@ -1,10 +1,10 @@
 @echo off
-title Ritesh AI Call Assistant Test Harness
+title Ritesh AI Call Assistant Automated Verification Suite
 cd /d "%~dp0backend"
-if "%~1"=="" (
-    ".venv\Scripts\python.exe" simulate_call.py
-) else (
-    ".venv\Scripts\python.exe" simulate_call.py %*
-)
+echo ==============================================================================
+echo       RITESH AI CALL ASSISTANT — RUNNING COMPLETE AUTOMATION SUITE
+echo ==============================================================================
+echo.
+".venv\Scripts\python.exe" -u tests\test_automated_suite.py
 echo.
 pause
