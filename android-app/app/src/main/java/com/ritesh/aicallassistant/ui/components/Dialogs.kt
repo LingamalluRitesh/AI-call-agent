@@ -277,19 +277,26 @@ fun ServerSettingsDialog(
                     color = Color(0xFF64748B)
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SuggestionChip(
-                        onClick = { urlInput = "http://10.0.2.2:8000/" },
-                        label = { Text("Emulator (10.0.2.2)", fontSize = 11.sp) },
-                        colors = SuggestionChipDefaults.suggestionChipColors(labelColor = Color(0xFF38BDF8))
-                    )
-                    SuggestionChip(
-                        onClick = { urlInput = "http://localhost:8000/" },
-                        label = { Text("Localhost", fontSize = 11.sp) },
-                        colors = SuggestionChipDefaults.suggestionChipColors(labelColor = Color(0xFF38BDF8))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SuggestionChip(
+                            onClick = { urlInput = "http://10.136.201.17:8000/" },
+                            label = { Text("PC Wi-Fi (10.136.201.17)", fontSize = 11.sp) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(labelColor = Color(0xFF22C55E))
+                        )
+                        SuggestionChip(
+                            onClick = { urlInput = "http://10.0.2.2:8000/" },
+                            label = { Text("Emulator", fontSize = 11.sp) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(labelColor = Color(0xFF38BDF8))
+                        )
+                    }
+                    Text(
+                        "Tip: Connect phone to same Wi-Fi as PC (10.136.201.17:8000), or deploy backend to cloud (Render/Railway) for 24/7 public access.",
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B)
                     )
                 }
             }

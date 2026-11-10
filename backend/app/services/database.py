@@ -30,6 +30,7 @@ class DatabaseService:
         self.neon_url = (settings.neon_database_url or settings.database_url or "").strip()
         self.sqlite_db_path = os.path.join(settings.local_data_dir, "call_assistant.db")
         self.is_neon = False
+        self._neon_pool = None
 
         if self.neon_url:
             self.is_neon = self._init_neon()
@@ -38,32 +39,27 @@ class DatabaseService:
             print("[Database] Using local SQLite database at:", self.sqlite_db_path, flush=True)
             self._init_sqlite()
 
-    def _get_neon_connection(self):
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-
-        dsn = self.neon_url
-        if "sslmode=" not in dsn:
-            sep = "&" if "?" in dsn else "?"
-            dsn = f"{dsn}{sep}sslmode=require"
-
-        conn = psycopg2.connect(dsn, cursor_factory=RealDictCursor, connect_timeout=10)
-        return conn
+    @property
+    def use_neon(self) -> bool:
+        return self.is_neon
 
     @contextmanager
     def _get_connection(self):
-        """Unified leak-proof connection context manager for SQLite and Neon PostgreSQL."""
-        if self.is_neon:
-            conn = self._get_neon_connection()
+        """Unified high-performance pooled connection context manager."""
+        if self.is_neon and self._neon_pool:
+            conn = self._neon_pool.getconn()
             try:
                 yield conn
                 conn.commit()
             except Exception:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 raise
             finally:
                 try:
-                    conn.close()
+                    self._neon_pool.putconn(conn)
                 except Exception:
                     pass
         else:
@@ -73,7 +69,10 @@ class DatabaseService:
                 yield conn
                 conn.commit()
             except Exception:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 raise
             finally:
                 try:
@@ -88,10 +87,24 @@ class DatabaseService:
         return query
 
     def _init_neon(self) -> bool:
-        """Initializes tables on Neon PostgreSQL cloud database and syncs schema."""
-        conn = None
+        """Initializes tables on Neon PostgreSQL cloud database and creates persistent connection pool."""
         try:
-            conn = self._get_neon_connection()
+            import psycopg2.pool
+            from psycopg2.extras import RealDictCursor
+
+            dsn = self.neon_url
+            if "sslmode=" not in dsn:
+                sep = "&" if "?" in dsn else "?"
+                dsn = f"{dsn}{sep}sslmode=require"
+
+            self._neon_pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=dsn,
+                cursor_factory=RealDictCursor,
+                connect_timeout=10
+            )
+            conn = self._neon_pool.getconn()
             with conn.cursor() as cursor:
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS call_logs (
@@ -143,9 +156,9 @@ class DatabaseService:
             print("[Database] Falling back to local SQLite.", flush=True)
             return False
         finally:
-            if conn:
+            if conn and self._neon_pool:
                 try:
-                    conn.close()
+                    self._neon_pool.putconn(conn)
                 except Exception:
                     pass
 
@@ -153,10 +166,10 @@ class DatabaseService:
         """Automatically migrates existing SQLite call records to Neon if Neon is empty."""
         neon_conn = None
         try:
-            if not os.path.exists(self.sqlite_db_path):
+            if not os.path.exists(self.sqlite_db_path) or not self._neon_pool:
                 return
 
-            neon_conn = self._get_neon_connection()
+            neon_conn = self._neon_pool.getconn()
             with neon_conn.cursor() as n_cur:
                 n_cur.execute("SELECT COUNT(*) as cnt FROM call_logs")
                 neon_count = n_cur.fetchone()["cnt"]
@@ -207,9 +220,9 @@ class DatabaseService:
         except Exception as e:
             print(f"[Database] Migration notice: {e}", flush=True)
         finally:
-            if neon_conn:
+            if neon_conn and self._neon_pool:
                 try:
-                    neon_conn.close()
+                    self._neon_pool.putconn(neon_conn)
                 except Exception:
                     pass
 
@@ -456,24 +469,27 @@ class DatabaseService:
     async def get_stats(self) -> Dict[str, Any]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-
-            cursor.execute(self._format_query("SELECT COUNT(*) as total FROM call_logs"))
-            r_total = cursor.fetchone()
-            total_calls = r_total["total"] if isinstance(r_total, dict) else r_total[0]
-
-            cursor.execute(self._format_query("SELECT COUNT(*) as pending FROM call_logs WHERE callback_required = 1 AND status = 'completed'"))
-            r_pending = cursor.fetchone()
-            pending_callbacks = r_pending["pending"] if isinstance(r_pending, dict) else r_pending[0]
-
-            cursor.execute(self._format_query("SELECT COUNT(*) as recorded FROM call_logs WHERE recording_status = 'recording'"))
-            r_rec = cursor.fetchone()
-            recorded_calls = r_rec["recorded"] if isinstance(r_rec, dict) else r_rec[0]
+            q = """
+            SELECT 
+                COUNT(*) as total,
+                COALESCE(SUM(CASE WHEN callback_required = 1 AND status = 'completed' THEN 1 ELSE 0 END), 0) as pending,
+                COALESCE(SUM(CASE WHEN recording_status = 'recording' THEN 1 ELSE 0 END), 0) as recorded,
+                COALESCE(SUM(CASE WHEN urgency IN ('emergency', 'high') THEN 1 ELSE 0 END), 0) as emergency
+            FROM call_logs;
+            """
+            cursor.execute(q)
+            row = cursor.fetchone()
+            total = int(row["total"] if isinstance(row, dict) else row[0])
+            pending = int(row["pending"] if isinstance(row, dict) else row[1])
+            recorded = int(row["recorded"] if isinstance(row, dict) else row[2])
+            emergency = int(row["emergency"] if isinstance(row, dict) else row[3])
 
             return {
-                "total_calls": total_calls,
-                "calls_today": total_calls,
-                "unread_messages": pending_callbacks,
-                "recorded_calls": recorded_calls,
+                "total_calls": total,
+                "calls_today": total,
+                "unread_messages": pending,
+                "recorded_calls": recorded,
+                "emergency_calls": emergency,
                 "assistant_status": "ready",
                 "database_engine": "neon_postgresql" if self.is_neon else "local_sqlite"
             }

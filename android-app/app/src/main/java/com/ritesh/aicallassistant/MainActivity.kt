@@ -275,7 +275,7 @@ private fun AppHeader(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
-                    painter = painterResource(id = R.drawable.app_logo),
+                    painter = painterResource(id = R.mipmap.ic_launcher),
                     contentDescription = "Ritesh AI Logo",
                     modifier = Modifier
                         .size(42.dp)

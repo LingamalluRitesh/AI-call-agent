@@ -1,6 +1,9 @@
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV_PATH = os.path.join(BACKEND_DIR, ".env")
+
 class Settings(BaseSettings):
     app_env: str = "development"
     public_base_url: str = "http://localhost:8000"
@@ -42,6 +45,7 @@ class Settings(BaseSettings):
 
     # Receptionist Behaviors & Consent Policy
     owner_display_name: str = "Ritesh"
+    owner_phone_number: str = "9705162303"
     default_greeting_language: str = "auto"
     call_recording_enabled: bool = True
     recording_requires_affirmative_consent: bool = True
@@ -51,7 +55,7 @@ class Settings(BaseSettings):
     ritesh_android_fcm_token: str = ""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=ENV_PATH if os.path.exists(ENV_PATH) else ".env",
         env_file_encoding="utf-8",
         extra="ignore"
     )

@@ -133,9 +133,12 @@ class ApiClient(private var baseUrlProvider: () -> String) {
         }
 
         val code = conn.responseCode
-        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            ?: throw IllegalStateException("HTTP $code without error stream")
-        return BufferedReader(InputStreamReader(stream)).use { it.readText() }
+        if (code !in 200..299) {
+            val errText = conn.errorStream?.let { BufferedReader(InputStreamReader(it)).use { r -> r.readText() } } ?: ""
+            val cleanErr = errText.trim().take(120)
+            throw java.io.IOException("HTTP $code on GET $endpoint ($cleanErr)")
+        }
+        return BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
     }
 
     private fun httpPost(endpoint: String, jsonBody: String): String {
@@ -152,8 +155,11 @@ class ApiClient(private var baseUrlProvider: () -> String) {
         OutputStreamWriter(conn.outputStream).use { it.write(jsonBody) }
 
         val code = conn.responseCode
-        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            ?: throw IllegalStateException("HTTP $code without error stream")
-        return BufferedReader(InputStreamReader(stream)).use { it.readText() }
+        if (code !in 200..299) {
+            val errText = conn.errorStream?.let { BufferedReader(InputStreamReader(it)).use { r -> r.readText() } } ?: ""
+            val cleanErr = errText.trim().take(120)
+            throw java.io.IOException("HTTP $code on POST $endpoint ($cleanErr)")
+        }
+        return BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
     }
 }
