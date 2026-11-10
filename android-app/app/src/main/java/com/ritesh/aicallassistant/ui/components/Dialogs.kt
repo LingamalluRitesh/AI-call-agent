@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -140,14 +142,30 @@ fun SimulationDialog(
 @Composable
 fun ForwardingDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var exoPhone by remember { mutableStateOf("08047360000") }
+    val clipboardManager = LocalClipboardManager.current
+    var exoPhone by remember { mutableStateOf("04041895281") }
+    var selectedCarrier by remember { mutableStateOf("Vi / Airtel") }
+
+    val formattedUssd = remember(exoPhone, selectedCarrier) {
+        val cleanNumber = exoPhone.trim().replace(" ", "").replace("-", "")
+        val e164 = if (cleanNumber.startsWith("+91")) cleanNumber else if (cleanNumber.startsWith("0")) "+91" + cleanNumber.substring(1) else "+91" + cleanNumber
+        when (selectedCarrier) {
+            "Jio" -> "*403*$cleanNumber"
+            else -> "**61*$e164**30#"
+        }
+    }
+
+    val deactivationCode = when (selectedCarrier) {
+        "Jio" -> "*404"
+        else -> "##61#"
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkSurface,
         title = {
             Text(
-                "📞 Vi Call Forwarding Setup",
+                "📞 Call Forwarding Setup",
                 color = Color(0xFFF8FAFC),
                 fontWeight = FontWeight.Bold
             )
@@ -155,19 +173,19 @@ fun ForwardingDialog(onDismiss: () -> Unit) {
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "When your phone is busy or unanswered, Vi will forward calls to your AI receptionist virtual number (ExoPhone).",
-                    fontSize = 13.sp,
+                    "When you don't answer or your line is busy, your carrier forwards the call directly to your Exotel AI receptionist.",
+                    fontSize = 12.sp,
                     color = Color(0xFFCBD5E1),
-                    lineHeight = 18.sp
+                    lineHeight = 16.sp
                 )
 
                 OutlinedTextField(
                     value = exoPhone,
                     onValueChange = { exoPhone = it },
-                    label = { Text("ExoPhone Number") },
+                    label = { Text("Exotel Virtual Number") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -178,49 +196,117 @@ fun ForwardingDialog(onDismiss: () -> Unit) {
                     )
                 )
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SuggestionChip(
+                        onClick = { exoPhone = "04041895281" },
+                        label = { Text("040-41895281 (Main)", fontSize = 10.sp) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            labelColor = if (exoPhone == "04041895281") Color(0xFF38BDF8) else Color.White
+                        )
+                    )
+                    SuggestionChip(
+                        onClick = { exoPhone = "09513886363" },
+                        label = { Text("09513886363 (Trial)", fontSize = 10.sp) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            labelColor = if (exoPhone == "09513886363") Color(0xFF38BDF8) else Color.White
+                        )
+                    )
+                }
+
+                Text(
+                    "Select Your Mobile SIM:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF94A3B8)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = selectedCarrier == "Vi / Airtel",
+                        onClick = { selectedCarrier = "Vi / Airtel" },
+                        label = { Text("Vi / Airtel / BSNL", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = selectedCarrier == "Jio",
+                        onClick = { selectedCarrier = "Jio" },
+                        label = { Text("Jio", fontSize = 11.sp) }
+                    )
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(DarkBackground)
-                        .padding(12.dp)
+                        .padding(10.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "Conditional Forwarding USSD Code:",
+                            text = "Carrier Dial Code (When Unanswered):",
                             fontSize = 11.sp,
                             color = Color(0xFF64748B)
                         )
                         Text(
-                            text = "*61*$exoPhone#",
-                            fontSize = 16.sp,
+                            text = formattedUssd,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF38BDF8)
                         )
                         Text(
-                            text = "Deactivation Code: ##61#",
+                            text = "Turn Off Code: $deactivationCode",
                             fontSize = 11.sp,
                             color = Color(0xFF94A3B8)
                         )
                     }
                 }
+
+                Text(
+                    "💡 If dialer gives 'Invalid MMI code', open Phone App -> Settings -> Calling accounts -> Call forwarding -> 'When unanswered' and paste $exoPhone directly.",
+                    fontSize = 11.sp,
+                    color = Color(0xFFF59E0B),
+                    lineHeight = 15.sp
+                )
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val encoded = Uri.encode("*61*$exoPhone#")
-                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$encoded"))
-                    context.startActivity(intent)
-                    onDismiss()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("Open Dialer (*61*)", color = Color.White)
+                Button(
+                    onClick = {
+                        val encoded = Uri.encode(formattedUssd)
+                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$encoded"))
+                        context.startActivity(intent)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                ) {
+                    Text("Dial $formattedUssd", color = Color.White)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(exoPhone))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("📋 Copy Number for Phone Settings", color = Color(0xFF38BDF8))
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text("Close", color = Color(0xFF64748B))
             }
         }
