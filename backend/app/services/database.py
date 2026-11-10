@@ -4,6 +4,7 @@ Supports:
 1. Neon PostgreSQL Cloud Database (via psycopg2) when NEON_DATABASE_URL is provided.
 2. Supabase (PostgreSQL + Private Storage Bucket) when credentials are provided.
 3. Local SQLite + Local File Storage fallback for instant offline/developer use.
+4. Multi-user company accounts and user-isolated call records.
 """
 
 import os
@@ -88,6 +89,7 @@ class DatabaseService:
 
     def _init_neon(self) -> bool:
         """Initializes tables on Neon PostgreSQL cloud database and creates persistent connection pool."""
+        conn = None
         try:
             import psycopg2.pool
             from psycopg2.extras import RealDictCursor
@@ -106,6 +108,22 @@ class DatabaseService:
             )
             conn = self._neon_pool.getconn()
             with conn.cursor() as cursor:
+                # Multi-user accounts table
+                cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    phone_number TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    company_name TEXT DEFAULT '',
+                    greeting_language TEXT DEFAULT 'auto',
+                    custom_greeting TEXT DEFAULT '',
+                    knowledge_base_json TEXT DEFAULT '{}',
+                    is_active INTEGER DEFAULT 1,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                """)
                 cursor.execute("""
                 CREATE TABLE IF NOT EXISTS call_logs (
                     id TEXT PRIMARY KEY,
@@ -231,6 +249,21 @@ class DatabaseService:
         with sqlite3.connect(self.sqlite_db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                phone_number TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                company_name TEXT DEFAULT '',
+                greeting_language TEXT DEFAULT 'auto',
+                custom_greeting TEXT DEFAULT '',
+                knowledge_base_json TEXT DEFAULT '{}',
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT,
+                updated_at TEXT
+            )
+            """)
+            cursor.execute("""
             CREATE TABLE IF NOT EXISTS call_logs (
                 id TEXT PRIMARY KEY,
                 user_id TEXT,
@@ -275,7 +308,71 @@ class DatabaseService:
             """)
             conn.commit()
 
-    async def create_call(self, provider_call_id: str, caller_number: str = "Unknown") -> str:
+    # --- User Management (Multi-User Company Support) ---
+    async def create_user(
+        self,
+        phone_number: str,
+        password_hash: str,
+        display_name: str,
+        company_name: str = ""
+    ) -> Dict[str, Any]:
+        user_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
+        clean_phone = phone_number.strip().replace(" ", "").replace("-", "")
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            q = self._format_query("""
+            INSERT INTO users (id, phone_number, password_hash, display_name, company_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """)
+            cursor.execute(q, (user_id, clean_phone, password_hash, display_name.strip(), company_name.strip(), now, now))
+
+        return {
+            "id": user_id,
+            "phone_number": clean_phone,
+            "display_name": display_name.strip(),
+            "company_name": company_name.strip(),
+            "greeting_language": "auto",
+            "custom_greeting": "",
+            "created_at": now
+        }
+
+    async def get_user_by_phone(self, phone_number: str) -> Optional[Dict[str, Any]]:
+        clean_phone = phone_number.strip().replace(" ", "").replace("-", "")
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            q = self._format_query("SELECT * FROM users WHERE phone_number = ?")
+            cursor.execute(q, (clean_phone,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            q = self._format_query("SELECT * FROM users WHERE id = ?")
+            cursor.execute(q, (user_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            user_data = dict(row)
+            user_data.pop("password_hash", None)
+            return user_data
+
+    async def update_user(self, user_id: str, **fields) -> Optional[Dict[str, Any]]:
+        if not fields:
+            return await self.get_user_by_id(user_id)
+        fields["updated_at"] = datetime.utcnow().isoformat()
+        set_clauses = [f"{k} = ?" for k in fields.keys()]
+        values = list(fields.values()) + [user_id]
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            q = self._format_query(f"UPDATE users SET {', '.join(set_clauses)} WHERE id = ?")
+            cursor.execute(q, values)
+        return await self.get_user_by_id(user_id)
+
+    # --- Call Lifecycle Management ---
+    async def create_call(self, provider_call_id: str, caller_number: str = "Unknown", user_id: Optional[str] = None) -> str:
         call_id = str(uuid.uuid4())
         now = datetime.utcnow().isoformat()
         retention_until = (datetime.utcnow() + timedelta(days=settings.recording_retention_days)).isoformat()
@@ -284,7 +381,7 @@ class DatabaseService:
             try:
                 data = {
                     "id": call_id,
-                    "user_id": str(uuid.uuid4()),
+                    "user_id": user_id or str(uuid.uuid4()),
                     "provider_call_id": provider_call_id,
                     "caller_number": caller_number,
                     "status": "in_progress",
@@ -300,10 +397,10 @@ class DatabaseService:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             q = self._format_query("""
-            INSERT INTO call_logs (id, provider_call_id, caller_number, status, recording_status, recording_retention_until, started_at, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO call_logs (id, user_id, provider_call_id, caller_number, status, recording_status, recording_retention_until, started_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """)
-            cursor.execute(q, (call_id, provider_call_id, caller_number, "in_progress", "awaiting_consent", retention_until, now, now))
+            cursor.execute(q, (call_id, user_id, provider_call_id, caller_number, "in_progress", "awaiting_consent", retention_until, now, now))
 
         return call_id
 
@@ -431,18 +528,25 @@ class DatabaseService:
         print(f"[Database] Saved recording locally: {local_path}", flush=True)
         return local_path
 
-    async def list_calls(self, limit: int = 50) -> List[Dict[str, Any]]:
+    async def list_calls(self, limit: int = 50, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         if supabase_client:
             try:
-                resp = supabase_client.table("call_logs").select("*").order("created_at", desc=True).limit(limit).execute()
+                q = supabase_client.table("call_logs").select("*").order("created_at", desc=True).limit(limit)
+                if user_id:
+                    q = q.eq("user_id", user_id)
+                resp = q.execute()
                 return resp.data or []
             except Exception as e:
                 print(f"[Database] Supabase list_calls failed: {e}", flush=True)
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            q = self._format_query("SELECT * FROM call_logs ORDER BY created_at DESC LIMIT ?")
-            cursor.execute(q, (limit,))
+            if user_id:
+                q = self._format_query("SELECT * FROM call_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?")
+                cursor.execute(q, (user_id, limit))
+            else:
+                q = self._format_query("SELECT * FROM call_logs ORDER BY created_at DESC LIMIT ?")
+                cursor.execute(q, (limit,))
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
 
@@ -466,18 +570,23 @@ class DatabaseService:
 
             return call
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self, user_id: Optional[str] = None) -> Dict[str, Any]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            q = """
+            where_clause = "WHERE user_id = ?" if user_id else ""
+            q = f"""
             SELECT 
                 COUNT(*) as total,
                 COALESCE(SUM(CASE WHEN callback_required = 1 AND status = 'completed' THEN 1 ELSE 0 END), 0) as pending,
                 COALESCE(SUM(CASE WHEN recording_status = 'recording' THEN 1 ELSE 0 END), 0) as recorded,
                 COALESCE(SUM(CASE WHEN urgency IN ('emergency', 'high') THEN 1 ELSE 0 END), 0) as emergency
-            FROM call_logs;
+            FROM call_logs {where_clause};
             """
-            cursor.execute(q)
+            q_fmt = self._format_query(q)
+            if user_id:
+                cursor.execute(q_fmt, (user_id,))
+            else:
+                cursor.execute(q_fmt)
             row = cursor.fetchone()
             total = int(row["total"] if isinstance(row, dict) else row[0])
             pending = int(row["pending"] if isinstance(row, dict) else row[1])

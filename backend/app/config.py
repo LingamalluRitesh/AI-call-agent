@@ -10,13 +10,19 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     internal_api_key: str = "ritesh-call-ai-dev-secret-2026"
 
-    # OpenAI Speech & Language Models
+    # Gemini AI Configuration (FREE — Primary Provider)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
+    gemini_tts_model: str = "gemini-3.8-flash-tts"
+    gemini_stt_model: str = "gemini-3.5-transcribe"
+
+    # OpenAI (Legacy Fallback)
     openai_api_key: str = ""
     openai_realtime_model: str = "gpt-4o-realtime-preview"
     openai_text_model: str = "gpt-4o"
     openai_stt_model: str = "whisper-1"
 
-    # ElevenLabs Cloned Voice Settings
+    # ElevenLabs Cloned Voice (Legacy Fallback)
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = ""
     elevenlabs_model_id: str = "eleven_multilingual_v2"
@@ -43,12 +49,22 @@ class Settings(BaseSettings):
     exotel_exophone: str = ""
     exotel_webhook_secret: str = ""
 
-    # Receptionist Behaviors & Consent Policy
+    # Twilio Telephony (Alternative)
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_phone_number: str = ""
+
+    # Default Owner (for backward compat — multi-user overrides this)
     owner_display_name: str = "Ritesh"
     owner_phone_number: str = "9705162303"
     default_greeting_language: str = "auto"
     call_recording_enabled: bool = True
     recording_requires_affirmative_consent: bool = True
+
+    # JWT Authentication (Multi-User)
+    jwt_secret_key: str = "ritesh-call-ai-jwt-secret-2026"
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_hours: int = 720  # 30 days
 
     # Android Push Notifications (Firebase)
     fcm_server_key: str = ""

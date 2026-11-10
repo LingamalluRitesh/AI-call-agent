@@ -5,3 +5,5 @@ httpx>=0.27,<1
 websockets>=13,<16
 supabase>=2.7,<3
 psycopg2-binary>=2.9.9
+google-genai>=2.30.1
+PyJWT>=2.8
