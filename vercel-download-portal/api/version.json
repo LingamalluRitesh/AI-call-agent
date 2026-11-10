@@ -1,0 +1,15 @@
+{
+  "versionCode": 1,
+  "versionName": "0.1.0",
+  "appName": "Ritesh AI Call Assistant",
+  "apkUrl": "/download",
+  "minSdkVersion": 26,
+  "targetSdkVersion": 35,
+  "releaseDate": "2026-11-10",
+  "releaseNotes": [
+    "Integrated with Neon PostgreSQL Cloud Database",
+    "Consent-gated call recording with 30-day automated retention",
+    "Multilingual AI Receptionist (Telugu, Hindi, English)",
+    "Real-time turn-by-turn transcription and urgent call flagging"
+  ]
+}

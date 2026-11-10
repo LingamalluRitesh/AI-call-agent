@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "src": "/api/version",
+      "dest": "/api/version.json"
+    },
+    {
+      "src": "/download",
+      "dest": "/Ritesh_AI_Call_Assistant.apk"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/Ritesh_AI_Call_Assistant.apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"Ritesh_AI_Call_Assistant.apk\""
+        }
+      ]
+    }
+  ]
+}

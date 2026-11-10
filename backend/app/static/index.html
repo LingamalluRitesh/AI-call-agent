@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ritesh AI Call Assistant</title>
+  <link rel="manifest" href="/app/manifest.json">
+  <meta name="theme-color" content="#1e293b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background-color: #0b0f19; color: #f1f5f9; min-height: 100vh; padding-bottom: 80px; }
+    header { background: #111827; border-bottom: 1px solid #1f2937; padding: 16px 20px; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #2563eb, #7c3aed); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+    .title h1 { font-size: 16px; font-weight: 700; color: #f8fafc; }
+    .title p { font-size: 12px; color: #94a3b8; }
+    .status-pill { display: flex; align-items: center; gap: 6px; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; color: #4ade80; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+
+    main { max-width: 600px; margin: 0 auto; padding: 16px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat-card { background: #161f30; border: 1px solid #1e293b; border-radius: 14px; padding: 12px 10px; text-align: center; }
+    .stat-num { font-size: 20px; font-weight: 700; color: #38bdf8; margin-bottom: 2px; }
+    .stat-label { font-size: 11px; color: #94a3b8; font-weight: 500; }
+
+    .action-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+    .btn { flex: 1; padding: 12px 14px; border-radius: 12px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+    .btn-primary { background: #2563eb; color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,0.4); }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-secondary { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; }
+    .btn-secondary:active { transform: scale(0.97); }
+
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .section-title { font-size: 15px; font-weight: 700; color: #f8fafc; }
+    .refresh-btn { background: none; border: none; color: #38bdf8; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+    .calls-list { display: flex; flex-direction: column; gap: 12px; }
+    .call-card { background: #161f30; border: 1px solid #1e293b; border-radius: 16px; padding: 16px; transition: border-color 0.2s; }
+    .call-card:hover { border-color: #334155; }
+    .call-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .caller-num { font-size: 15px; font-weight: 700; color: #f8fafc; text-decoration: none; }
+    .call-time { font-size: 11px; color: #64748b; }
+
+    .badge-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 8px; text-transform: uppercase; }
+    .badge-emergency { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .badge-high { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+    .badge-normal { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+    .badge-lang { background: #1e293b; color: #94a3b8; }
+    .badge-rec { background: rgba(16,185,129,0.15); color: #34d399; }
+    .badge-declined { background: rgba(100,116,139,0.2); color: #94a3b8; }
+
+    .call-summary { font-size: 13px; color: #cbd5e1; line-height: 1.5; margin-bottom: 12px; }
+    .audio-player { width: 100%; height: 36px; border-radius: 8px; margin-top: 8px; outline: none; }
+
+    .transcript-toggle { font-size: 12px; color: #38bdf8; font-weight: 600; cursor: pointer; margin-top: 8px; display: inline-block; }
+    .transcript-box { background: #0b0f19; border-radius: 12px; padding: 12px; margin-top: 10px; display: none; }
+    .t-row { font-size: 12px; margin-bottom: 8px; line-height: 1.4; }
+    .t-assistant { color: #93c5fd; }
+    .t-caller { color: #f1f5f9; }
+
+    .install-banner { background: linear-gradient(135deg, #1e3a8a, #3b82f6); border-radius: 16px; padding: 16px; margin-bottom: 20px; display: none; align-items: center; justify-content: space-between; }
+    .install-banner p { font-size: 13px; font-weight: 600; color: #fff; }
+    .btn-install { background: #fff; color: #1e3a8a; font-weight: 700; padding: 8px 16px; border-radius: 20px; border: none; font-size: 12px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="avatar">R</div>
+      <div class="title">
+        <h1>Ritesh AI Assistant</h1>
+        <p>RMVS Web Services Receptionist</p>
+      </div>
+    </div>
+    <div class="status-pill">
+      <span class="status-dot"></span>
+      <span>READY</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="installBanner" class="install-banner">
+      <div>
+        <p>Install App on Your Phone</p>
+        <span style="font-size:11px; opacity:0.85;">Add to Android Home Screen</span>
+      </div>
+      <button id="installBtn" class="btn-install">INSTALL</button>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div id="statTotal" class="stat-num">-</div>
+        <div class="stat-label">Calls Today</div>
+      </div>
+      <div class="stat-card">
+        <div id="statUnread" class="stat-num">-</div>
+        <div class="stat-label">Callbacks</div>
+      </div>
+      <div class="stat-card">
+        <div id="statRecorded" class="stat-num">-</div>
+        <div class="stat-label">Recorded</div>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <a href="/download" class="btn btn-primary" style="text-decoration:none;" download>
+        <span>⬇️ Download APK (9 MB)</span>
+      </a>
+      <button class="btn btn-secondary" onclick="simulateCall('9705162303')">
+        <span>⚡ Test 9705162303</span>
+      </button>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Recent Call Activity</div>
+      <button class="refresh-btn" onclick="loadCalls()">Refresh ↻</button>
+    </div>
+
+    <div id="callsList" class="calls-list">
+      <div style="text-align:center; padding:30px; color:#64748b;">Loading calls...</div>
+    </div>
+  </main>
+
+  <script>
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById('installBanner').style.display = 'flex';
+    });
+
+    document.getElementById('installBtn').addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          document.getElementById('installBanner').style.display = 'none';
+        }
+        deferredPrompt = null;
+      }
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/app/sw.js').catch(console.error);
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/dashboard/stats');
+        const data = await res.json();
+        document.getElementById('statTotal').innerText = data.calls_today || '0';
+        document.getElementById('statUnread').innerText = data.unread_messages || '0';
+        document.getElementById('statRecorded').innerText = data.recorded_calls || '0';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadCalls() {
+      const container = document.getElementById('callsList');
+      try {
+        const res = await fetch('/api/calls?limit=20');
+        const data = await res.json();
+        if (!data.items || data.items.length === 0) {
+          container.innerHTML = '<div style="text-align:center; padding:30px; color:#64748b;">No calls recorded yet.</div>';
+          return;
+        }
+
+        container.innerHTML = data.items.map(call => {
+          const urgencyClass = call.urgency === 'emergency' ? 'badge-emergency' : (call.urgency === 'high' ? 'badge-high' : 'badge-normal');
+          const isRecorded = call.recording_status === 'recording';
+          const recBadge = isRecorded ? '<span class="badge badge-rec">REC SAVED</span>' : '<span class="badge badge-declined">NO REC</span>';
+          
+          let audioHtml = '';
+          if (isRecorded && call.recording_storage_path) {
+            const filename = call.recording_storage_path.split('\\').pop().split('/').pop();
+            audioHtml = `<audio class="audio-player" controls preload="none" src="/api/recordings/${filename}"></audio>`;
+          }
+
+          const callDate = new Date(call.started_at || call.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+
+          return `
+            <div class="call-card">
+              <div class="call-top">
+                <a href="tel:${call.caller_number}" class="caller-num">📞 ${call.caller_number}</a>
+                <span class="call-time">${callDate}</span>
+              </div>
+              <div class="badge-row">
+                <span class="badge ${urgencyClass}">${call.urgency}</span>
+                <span class="badge badge-lang">${(call.detected_language || 'EN').toUpperCase()}</span>
+                ${recBadge}
+              </div>
+              <div class="call-summary">${call.summary || 'Call handled by AI receptionist.'}</div>
+              ${audioHtml}
+              <div class="transcript-toggle" onclick="toggleTranscript('${call.id}')">View Transcript ▼</div>
+              <div id="t-${call.id}" class="transcript-box">
+                <div style="font-size:11px; color:#64748b; margin-bottom:6px;">Turn-by-turn dialogue:</div>
+                <div id="t-content-${call.id}">Loading...</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        container.innerHTML = '<div style="text-align:center; padding:30px; color:#ef4444;">Failed to load calls.</div>';
+      }
+    }
+
+    async function toggleTranscript(callId) {
+      const box = document.getElementById(`t-${callId}`);
+      if (box.style.display === 'block') {
+        box.style.display = 'none';
+        return;
+      }
+      box.style.display = 'block';
+      const content = document.getElementById(`t-content-${callId}`);
+      try {
+        const res = await fetch(`/api/calls/${callId}`);
+        const call = await res.json();
+        if (!call.transcripts || call.transcripts.length === 0) {
+          content.innerHTML = '<div style="color:#64748b;">No transcript items available.</div>';
+          return;
+        }
+        content.innerHTML = call.transcripts.map(t => `
+          <div class="t-row">
+            <strong class="${t.speaker === 'assistant' ? 't-assistant' : 't-caller'}">${t.speaker === 'assistant' ? 'AI' : 'Caller'}:</strong> ${t.content}
+          </div>
+        `).join('');
+      } catch (e) {
+        content.innerHTML = '<div style="color:#ef4444;">Error loading transcript.</div>';
+      }
+    }
+
+    async function simulateCall(number) {
+      const btn = event.target;
+      btn.innerText = 'Testing...';
+      try {
+        await fetch('/api/test/simulate-call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            caller_number: number,
+            caller_utterances: [
+              "Yes, sure go ahead and record.",
+              "Hi, I am calling from " + number + " about an e-commerce website for RMVS Web Services.",
+              "Please have Ritesh call me back this evening."
+            ],
+            language: "en"
+          })
+        });
+        loadStats();
+        loadCalls();
+      } catch (e) {
+        alert('Simulation error: ' + e);
+      } finally {
+        btn.innerText = '⚡ Test ' + number;
+      }
+    }
+
+    async function simulateTelugu(number) {
+      const btn = event.target;
+      btn.innerText = 'Testing...';
+      try {
+        await fetch('/api/test/simulate-call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            caller_number: number,
+            caller_utterances: [
+              "సరేనండి, రికార్డ్ చేసుకోవచ్చు.",
+              "నమస్కారం, " + number + " నుంచి కాల్ చేస్తున్నాను. RMVS వెబ్ సర్వీసెస్ లో వెబ్‌సైట్ డిజైన్ గురించి మాట్లాడాలి.",
+              "సాయంత్రం రితేష్ గారిని కాల్ చేయమని చెప్పండి."
+            ],
+            language: "te"
+          })
+        });
+        loadStats();
+        loadCalls();
+      } catch (e) {
+        alert('Simulation error: ' + e);
+      } finally {
+        btn.innerText = '🗣️ Telugu Test';
+      }
+    }
+
+    // Auto-refresh every 10 seconds
+    loadStats();
+    loadCalls();
+    setInterval(() => { loadStats(); loadCalls(); }, 10000);
+  </script>
+</body>
+</html>

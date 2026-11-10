@@ -1,0 +1,35 @@
+# Environment and credentials
+.env
+.env.*
+!.env.example
+
+# Python virtual environment and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Android build outputs and caches
+.gradle/
+.idea/
+local.properties
+build/
+**/build/
+.builds/
+captures/
+*.hprof
+
+# Database and local audio storage
+backend/data/*.db
+backend/data/recordings/
+*.db
+*.sqlite3
+*.wav
+*.mp3
+*.m4a
+!vercel-download-portal/public/Ritesh_AI_Call_Assistant.apk
+
+# OS files
+.DS_Store
+Thumbs.db
